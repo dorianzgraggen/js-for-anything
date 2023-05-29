@@ -9,4 +9,5 @@ path="lib.rs"
 
 [dependencies]
 deno_core = "0.174.0"
+libc = "0.2.144"
 tokio = { version = "1.25.0", features = ["full"] }

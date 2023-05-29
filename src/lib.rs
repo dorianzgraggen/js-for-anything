@@ -2,6 +2,9 @@ use std::rc::Rc;
 
 use deno_core::{anyhow::Error, error::AnyError, include_js_files, op, Extension};
 
+use libc::c_char;
+use std::ffi::CStr;
+
 #[no_mangle]
 pub extern "C" fn add(a: isize, b: isize) -> isize {
     a + b
@@ -15,6 +18,21 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
         Ok(_) => Ok(()),
         Err(e) => Err(Error::new(e)),
     }
+}
+
+#[no_mangle]
+pub extern "C" fn register_method() {}
+
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+#[no_mangle]
+pub extern "C" fn how_many_characters(s: *const c_char) -> u32 {
+    let c_str = unsafe {
+        assert!(!s.is_null());
+        CStr::from_ptr(s)
+    };
+
+    let r_str = c_str.to_str().unwrap();
+    r_str.chars().count() as u32
 }
 
 #[no_mangle]

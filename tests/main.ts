@@ -4,6 +4,7 @@ const libName = `../src/target/debug/src.dll`;
 const dylib = Deno.dlopen(libName, {
   add: { parameters: ['isize', 'isize'], result: 'isize' },
   init: { parameters: [], result: 'void' },
+  how_many_characters: { parameters: [] },
 } as const);
 
 const js_runtime = dylib.symbols;
@@ -15,7 +16,9 @@ const js_runtime = dylib.symbols;
  * }
  *
  */
-// js_runtime.registerMethod('player.setPosition', 0);
+console.log(js_runtime.how_many_characters('göes to élevên'));
+
+js_runtime.registerMethod('demo', 0);
 
 js_runtime.init();
 
