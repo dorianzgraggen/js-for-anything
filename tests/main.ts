@@ -2,9 +2,27 @@ const libName = `../src/target/debug/src.dll`;
 
 import {
   greet,
+  init,
   register_function,
   print_function_list,
+  poll_task,
 } from '../src/bindings/bindings.ts';
+
+type callback = [string, () => any];
+
+export function find(callbacks: callback[], name: string): [string, number] {
+  const index = callbacks.findIndex((f) => f[0] == name);
+  return [name, index];
+}
+
+const callbacks: callback[] = [
+  [
+    'demo',
+    () => {
+      console.log('i am a demo');
+    },
+  ],
+];
 
 // Open library and define exported symbols
 
@@ -30,18 +48,23 @@ print_function_list();
 
 console.log('--');
 
-register_function('demo', 1);
+register_function(...find(callbacks, 'demo'));
 
 print_function_list();
 
-// console.log(js_runtime.how_many_characters('göes to élevên'));
-
-// js_runtime.registerMethod('demo', 0);
-
-// js_runtime.init();
+init();
 
 while (true) {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  let id = poll_task();
+  while (id != -1) {
+    const callback = callbacks[id];
+
+    callback[1]();
+
+    id = poll_task();
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
 // const ops = {

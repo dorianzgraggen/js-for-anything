@@ -1,2 +1,6 @@
 writeFile("fromjs.txt", "bonjour")
-demo()
+// demo()
+
+for (let i = 0; i < 6; i++) {
+  task(0)
+}
