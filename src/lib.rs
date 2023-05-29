@@ -14,7 +14,7 @@ static FUNCTION_MAP: Lazy<Mutex<HashMap<u32, String>>> = Lazy::new(|| {
     Mutex::new(m)
 });
 
-static TASKS: Lazy<Mutex<VecDeque<u32>>> = Lazy::new(|| {
+static TASKS: Lazy<Mutex<VecDeque<(u32, String)>>> = Lazy::new(|| {
     let v = VecDeque::new();
     Mutex::new(v)
 });
@@ -35,9 +35,9 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
 }
 
 #[op]
-fn op_task(id: u32) -> Result<(), AnyError> {
+fn op_task(id: u32, args: String) -> Result<(), AnyError> {
     let mut v = TASKS.lock().unwrap();
-    v.push_back(id);
+    v.push_back((id, args));
     Ok(())
 }
 
@@ -46,9 +46,22 @@ fn poll_task() -> i32 {
     let mut queue = TASKS.lock().unwrap();
 
     match queue.pop_front() {
-        Some(v) => v as i32,
+        Some(v) => v.0 as i32,
         None => -1,
     }
+}
+
+#[deno_bindgen]
+fn theme_song_generate(length: u8) -> *mut u8 {
+    let mut song = String::from("💣");
+    println!("1");
+    song.extend(std::iter::repeat("na ").take(length as usize));
+    song.push_str("Batman! 💣");
+    println!("2");
+
+    let c_str_song = std::ffi::CString::new(song).unwrap();
+    println!("3");
+    c_str_song.into_raw() as *mut u8
 }
 
 #[deno_bindgen]
@@ -65,6 +78,13 @@ fn print_function_list() {
 pub extern "C" fn register_function(name: &str, id: u32) {
     let mut c = FUNCTION_MAP.lock().unwrap();
     c.insert(id, String::from(name));
+}
+
+static BUFFER: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
+
+#[no_mangle]
+pub extern "C" fn return_buffer() -> *const u8 {
+    BUFFER.as_ptr()
 }
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)]

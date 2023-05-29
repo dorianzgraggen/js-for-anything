@@ -6,6 +6,8 @@ import {
   register_function,
   print_function_list,
   poll_task,
+  theme_song_generate,
+  return_buffer,
 } from '../src/bindings/bindings.ts';
 
 type callback = [string, (...args: any[]) => any];
@@ -54,7 +56,21 @@ const callbacks: callback[] = [
  *
  */
 
+const dylib = Deno.dlopen('../src/target/debug/js_for_anything.dll', {
+  return_buffer: { parameters: [], result: 'pointer' },
+  // is_null_ptr: { parameters: ['pointer'], result: 'u8' },
+});
+
 // console.log(greet('Brudi'));
+console.log('*');
+const ptr = dylib.symbols.return_buffer();
+const ptrView = new Deno.UnsafePointerView(ptr);
+const into = new Uint8Array(6);
+ptrView.copyInto(into);
+console.log(into);
+console.log();
+
+// console.log(theme_song_generate(3));
 
 print_function_list();
 

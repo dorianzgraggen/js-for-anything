@@ -23,6 +23,6 @@ globalThis.writeFile = (path, contents) => {
 
 
 globalThis.task = (id, ...args) => {
-  return ops.op_task(id);
+  return ops.op_task(id, JSON.stringify(args));
 }
 
