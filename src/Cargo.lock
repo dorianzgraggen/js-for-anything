@@ -3,6 +3,16 @@
 version = 3
 
 [[package]]
+name = "Inflector"
+version = "0.11.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
+dependencies = [
+ "lazy_static",
+ "regex",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -52,6 +62,31 @@ name = "data-encoding"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2e66c9d817f1720209181c316d28635c050fa304f9c79e47a520882661b7308"
+
+[[package]]
+name = "deno_bindgen"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b18c344518b72f02875567310aa696fbad9d7e15fd7dceaacb826ac88a203fd0"
+dependencies = [
+ "deno_bindgen_macro",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "deno_bindgen_macro"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4c1679fb6954e8eca7644815b244c48417681945c15dfc3b31a2f9e86aa33c2"
+dependencies = [
+ "Inflector",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "deno_core"
@@ -616,8 +651,10 @@ dependencies = [
 name = "src"
 version = "0.1.0"
 dependencies = [
+ "deno_bindgen",
  "deno_core",
  "libc",
+ "serde",
  "tokio",
 ]
 

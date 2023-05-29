@@ -1,13 +1,16 @@
 const libName = `../src/target/debug/src.dll`;
 
-// Open library and define exported symbols
-const dylib = Deno.dlopen(libName, {
-  add: { parameters: ['isize', 'isize'], result: 'isize' },
-  init: { parameters: [], result: 'void' },
-  how_many_characters: { parameters: [] },
-} as const);
+import { mul, Input, greet } from '../src/bindings/bindings.ts';
 
-const js_runtime = dylib.symbols;
+// Open library and define exported symbols
+
+// const dylib = Deno.dlopen(libName, {
+//   add: { parameters: ['isize', 'isize'], result: 'isize' },
+//   init: { parameters: [], result: 'void' },
+//   how_many_characters: { parameters: [] },
+// } as const);
+
+// const js_runtime = dylib.symbols;
 
 /**
  * TODO:
@@ -16,11 +19,15 @@ const js_runtime = dylib.symbols;
  * }
  *
  */
-console.log(js_runtime.how_many_characters('göes to élevên'));
 
-js_runtime.registerMethod('demo', 0);
+console.log(mul({ a: 12, b: 3 }));
+console.log(greet('Brudi'));
 
-js_runtime.init();
+// console.log(js_runtime.how_many_characters('göes to élevên'));
+
+// js_runtime.registerMethod('demo', 0);
+
+// js_runtime.init();
 
 while (true) {
   await new Promise((resolve) => setTimeout(resolve, 1000));

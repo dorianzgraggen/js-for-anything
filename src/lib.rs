@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use deno_bindgen::deno_bindgen;
 use deno_core::{anyhow::Error, error::AnyError, include_js_files, op, Extension};
 
 use libc::c_char;
@@ -18,6 +19,26 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
         Ok(_) => Ok(()),
         Err(e) => Err(Error::new(e)),
     }
+}
+
+#[deno_bindgen]
+fn greet(name: &str) -> String {
+    println!("Hello, {}!", name);
+
+    let a = "ussee!";
+
+    a.into()
+}
+
+#[deno_bindgen]
+struct Input {
+    a: i32,
+    b: i32,
+}
+
+#[deno_bindgen]
+fn mul(input: Input) -> i32 {
+    input.a * input.b
 }
 
 #[no_mangle]

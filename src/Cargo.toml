@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
+name="js_for_anything"
 crate-type=["cdylib"]
 path="lib.rs"
 
@@ -11,3 +12,5 @@ path="lib.rs"
 deno_core = "0.174.0"
 libc = "0.2.144"
 tokio = { version = "1.25.0", features = ["full"] }
+deno_bindgen = "0.8.0"
+serde = { version = "1", features = ["derive"] }
