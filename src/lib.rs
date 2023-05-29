@@ -1,10 +1,19 @@
+use once_cell::sync::Lazy;
 use std::rc::Rc;
+use std::{collections::HashMap, sync::Mutex};
 
 use deno_bindgen::deno_bindgen;
 use deno_core::{anyhow::Error, error::AnyError, include_js_files, op, Extension};
 
 use libc::c_char;
 use std::ffi::CStr;
+
+static GLOBAL_DATA: Lazy<Mutex<HashMap<u32, String>>> = Lazy::new(|| {
+    let mut m = HashMap::new();
+    // m.insert(13, "Spica".to_string());
+    // m.insert(74, "Hoyten".to_string());
+    Mutex::new(m)
+});
 
 #[no_mangle]
 pub extern "C" fn add(a: isize, b: isize) -> isize {
@@ -22,27 +31,20 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
 }
 
 #[deno_bindgen]
-fn greet(name: &str) -> String {
+fn greet(name: &str) {
     println!("Hello, {}!", name);
-
-    let a = "ussee!";
-
-    a.into()
 }
 
 #[deno_bindgen]
-struct Input {
-    a: i32,
-    b: i32,
+fn print_function_list() {
+    println!("{:?}", GLOBAL_DATA.lock().unwrap());
 }
 
 #[deno_bindgen]
-fn mul(input: Input) -> i32 {
-    input.a * input.b
+pub extern "C" fn register_function(name: &str, id: u32) {
+    let mut c = GLOBAL_DATA.lock().unwrap();
+    c.insert(id, String::from(name));
 }
-
-#[no_mangle]
-pub extern "C" fn register_method() {}
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[no_mangle]

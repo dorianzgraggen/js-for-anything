@@ -1,6 +1,10 @@
 const libName = `../src/target/debug/src.dll`;
 
-import { mul, Input, greet } from '../src/bindings/bindings.ts';
+import {
+  greet,
+  register_function,
+  print_function_list,
+} from '../src/bindings/bindings.ts';
 
 // Open library and define exported symbols
 
@@ -20,8 +24,15 @@ import { mul, Input, greet } from '../src/bindings/bindings.ts';
  *
  */
 
-console.log(mul({ a: 12, b: 3 }));
-console.log(greet('Brudi'));
+// console.log(greet('Brudi'));
+
+print_function_list();
+
+console.log('--');
+
+register_function('demo', 1);
+
+print_function_list();
 
 // console.log(js_runtime.how_many_characters('göes to élevên'));
 
