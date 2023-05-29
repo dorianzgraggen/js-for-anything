@@ -20,7 +20,9 @@ globalThis.writeFile = (path, contents) => {
   return ops.op_write_file(path, contents);
 };
 
-globalThis.task = (id) => {
+
+
+globalThis.task = (id, ...args) => {
   return ops.op_task(id);
 }
 

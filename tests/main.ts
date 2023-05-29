@@ -8,7 +8,7 @@ import {
   poll_task,
 } from '../src/bindings/bindings.ts';
 
-type callback = [string, () => any];
+type callback = [string, (...args: any[]) => any];
 
 export function find(callbacks: callback[], name: string): [string, number] {
   const index = callbacks.findIndex((f) => f[0] == name);
@@ -20,6 +20,18 @@ const callbacks: callback[] = [
     'demo',
     () => {
       console.log('i am a demo');
+    },
+  ],
+  [
+    'sayHi',
+    (name: string) => {
+      console.log(`Hi, ${name} 👋`);
+    },
+  ],
+  [
+    'multiply',
+    (a: number, b: number) => {
+      return a * b;
     },
   ],
 ];
@@ -48,7 +60,9 @@ print_function_list();
 
 console.log('--');
 
-register_function(...find(callbacks, 'demo'));
+callbacks.forEach((callback, i) => {
+  register_function(callback[0], i);
+});
 
 print_function_list();
 

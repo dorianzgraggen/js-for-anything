@@ -1,5 +1,4 @@
 use once_cell::sync::Lazy;
-use std::alloc::System;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::{collections::HashMap, sync::Mutex};
@@ -11,7 +10,7 @@ use libc::c_char;
 use std::ffi::CStr;
 
 static FUNCTION_MAP: Lazy<Mutex<HashMap<u32, String>>> = Lazy::new(|| {
-    let mut m = HashMap::new();
+    let m = HashMap::new();
     Mutex::new(m)
 });
 
@@ -83,22 +82,28 @@ pub extern "C" fn how_many_characters(s: *const c_char) -> u32 {
 #[deno_bindgen]
 pub extern "C" fn init() {
     std::thread::spawn(|| {
-        let file_path = "./app.js";
-
         let runtime = tokio::runtime::Builder::new_current_thread()
             .thread_name("js_plugin thread")
             .enable_all()
             .build()
             .unwrap();
 
-        if let Err(error) = runtime.block_on(start_runtime(file_path)) {
+        if let Err(error) = runtime.block_on(start_runtime()) {
             eprintln!("error: {error}");
         }
     });
 }
 
-async fn start_runtime(file_path: &str) -> Result<(), AnyError> {
-    let main_module = deno_core::resolve_path(file_path)?;
+async fn start_runtime() -> Result<(), AnyError> {
+    std::fs::copy("app.js", "copy.js")?;
+    let contents = std::fs::read_to_string("copy.js")?;
+
+    let prelude = build_prelude();
+    let both = format!("{}{}", prelude, contents);
+    std::fs::write("copy.js", both)?;
+
+    let main_module = deno_core::resolve_path("copy.js")?;
+
     let runjs_extension = Extension::builder("runjs")
         .esm(include_js_files!("runtime.js",))
         .ops(vec![op_write_file::decl(), op_task::decl()])
@@ -116,4 +121,17 @@ async fn start_runtime(file_path: &str) -> Result<(), AnyError> {
 
     js_runtime.run_event_loop(false).await?;
     result.await?
+}
+
+fn build_prelude() -> String {
+    let raw_prelude = include_str!("prelude.js");
+    let functions = { FUNCTION_MAP.lock().unwrap().clone() };
+
+    // builds list with elements like this: ['functionName', 0]
+    let mut to_insert = String::from("");
+    for (id, name) in functions.into_iter() {
+        to_insert = format!("{}['{}',{}],", to_insert, name, id);
+    }
+
+    raw_prelude.replace("/** will be populated before it runs */", &to_insert)
 }
