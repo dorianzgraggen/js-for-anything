@@ -1,0 +1,1 @@
+writeFile("fromjs.txt", "bonjour")
