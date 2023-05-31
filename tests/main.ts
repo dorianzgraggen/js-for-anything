@@ -106,75 +106,58 @@ console.log('--initttttttttt');
 function poll_task_2() {
   const ptr = dylib.symbols.poll_task();
 
-  console.log(ptr);
   let id = 0;
   {
-    console.log('============ METHOD ID');
-    // read function id
     const ptrView = new Deno.UnsafePointerView(ptr);
-    console.log(ptrView);
     const into = new Uint8Array(1);
     ptrView.copyInto(into);
-    console.log(into);
-    // const s = new TextDecoder().decode(into);
-    // console.log(s);
     id = into[0];
   }
 
   if (id == 0) {
-    return;
+    return {
+      id,
+      args: [],
+    };
   }
 
   let arg_length = 0;
   {
-    // read args length
-    console.log('============ ARG LENGTH');
     const ptrView = new Deno.UnsafePointerView(ptr);
-    console.log(ptrView);
     const into = new Uint8Array(4);
     ptrView.copyInto(into, 1);
-    console.log(into);
-
     arg_length = new Uint32Array(into.buffer)[0];
-    console.log('length', arg_length);
-
-    // const s = new TextDecoder().decode(into);
-    // console.log(s);
   }
 
+  let args = [];
   {
-    console.log('============ ARGS');
     const ptrView = new Deno.UnsafePointerView(ptr);
-
     const into = new Uint8Array(arg_length + 4 - (arg_length % 4));
     ptrView.copyInto(into, 5);
-    console.log(into);
-
     const s = new TextDecoder().decode(into.slice(0, arg_length));
-    console.log('arguments:', s);
-
-    const args = JSON.parse(s);
-    console.log({ args });
+    args = JSON.parse(s);
   }
 
-  return;
+  return { id, args };
 }
 
 console.log('polled');
 
 while (true) {
-  // let id = poll_task();
-  // while (id != -1) {
-  //   const callback = callbacks[id];
+  let { id, args } = poll_task_2();
+  while (id != 0) {
+    const callback = callbacks[id - 1];
+    console.log('calling', callback[0], 'with args', args);
+    callback[1](...args);
 
-  //   callback[1]();
+    const t = poll_task_2();
 
-  //   let id = poll_task();
-  // }
+    id = t.id;
+    args = t.args;
+    console.log('id is now', id, 'args is', args);
+  }
 
-  poll_task_2();
-
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
 // const ops = {

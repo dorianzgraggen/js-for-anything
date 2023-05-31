@@ -47,21 +47,22 @@ static mut JSON_ARGS_BUFFER: [u8; 1024] = [0; 1024];
 #[no_mangle]
 fn poll_task() -> *const u8 {
     let mut queue = TASKS.lock().unwrap();
-    println!("hahahahaha");
+    // println!("hahahahaha");
 
     unsafe {
         if let Some((id, args)) = queue.pop_front() {
             JSON_ARGS_BUFFER[0] = id;
+            // println!("id is: {:#?}", id);
 
             let len_in_bytes: [u8; 4] = std::mem::transmute(args.bytes().len() as u32);
-            println!("len_in_bytes: {:#?}", len_in_bytes);
+            // println!("len_in_bytes: {:#?}", len_in_bytes);
 
             JSON_ARGS_BUFFER[1] = len_in_bytes[0];
             JSON_ARGS_BUFFER[2] = len_in_bytes[1];
             JSON_ARGS_BUFFER[3] = len_in_bytes[2];
             JSON_ARGS_BUFFER[4] = len_in_bytes[3];
 
-            println!("bytes: {:#?}", args.bytes());
+            // println!("bytes: {:#?}", args.bytes());
             for (i, byte) in args.bytes().enumerate() {
                 JSON_ARGS_BUFFER[i + 5] = byte;
             }
@@ -118,6 +119,7 @@ fn print_function_list() {
 #[deno_bindgen]
 pub extern "C" fn register_function(name: &str, id: u32) {
     let mut c = FUNCTION_MAP.lock().unwrap();
+    println!("Registering: {}", id);
     c.insert(id, String::from(name));
 }
 
