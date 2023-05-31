@@ -14,7 +14,7 @@ static FUNCTION_MAP: Lazy<Mutex<HashMap<u32, String>>> = Lazy::new(|| {
     Mutex::new(m)
 });
 
-static TASKS: Lazy<Mutex<VecDeque<(u32, String)>>> = Lazy::new(|| {
+static TASKS: Lazy<Mutex<VecDeque<(u8, String)>>> = Lazy::new(|| {
     let v = VecDeque::new();
     Mutex::new(v)
 });
@@ -35,20 +35,61 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
 }
 
 #[op]
-fn op_task(id: u32, args: String) -> Result<(), AnyError> {
+fn op_task(id: u8, args: String) -> Result<(), AnyError> {
+    println!("args: {args}");
     let mut v = TASKS.lock().unwrap();
     v.push_back((id, args));
     Ok(())
 }
 
-#[deno_bindgen]
-fn poll_task() -> i32 {
-    let mut queue = TASKS.lock().unwrap();
+static mut JSON_ARGS_BUFFER: [u8; 1024] = [0; 1024];
 
-    match queue.pop_front() {
-        Some(v) => v.0 as i32,
-        None => -1,
+#[no_mangle]
+fn poll_task() -> *const u8 {
+    let mut queue = TASKS.lock().unwrap();
+    println!("hahahahaha");
+
+    unsafe {
+        if let Some((id, args)) = queue.pop_front() {
+            JSON_ARGS_BUFFER[0] = id;
+
+            let len_in_bytes: [u8; 4] = std::mem::transmute(args.bytes().len() as u32);
+            println!("len_in_bytes: {:#?}", len_in_bytes);
+
+            JSON_ARGS_BUFFER[1] = len_in_bytes[0];
+            JSON_ARGS_BUFFER[2] = len_in_bytes[1];
+            JSON_ARGS_BUFFER[3] = len_in_bytes[2];
+            JSON_ARGS_BUFFER[4] = len_in_bytes[3];
+
+            println!("bytes: {:#?}", args.bytes());
+            for (i, byte) in args.bytes().enumerate() {
+                JSON_ARGS_BUFFER[i + 5] = byte;
+            }
+        } else {
+            JSON_ARGS_BUFFER[0] = 0;
+        }
+
+        JSON_ARGS_BUFFER.as_ptr()
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn return_string_buffer() -> *const u8 {
+    // BUFFER.as_ptr()
+
+    // let b = [u8, 8] = [1, 1, 2, 2, 6, 6, 6, 6];
+
+    let word = String::from("juhuii");
+
+    println!("{:#?}", word.as_bytes());
+
+    for (i, byte) in word.bytes().enumerate() {
+        unsafe {
+            JSON_ARGS_BUFFER[i] = byte;
+        }
+    }
+
+    unsafe { JSON_ARGS_BUFFER.as_ptr() }
 }
 
 #[deno_bindgen]
