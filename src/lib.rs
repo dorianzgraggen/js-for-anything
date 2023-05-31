@@ -46,7 +46,7 @@ fn poll_task() -> *const u8 {
             JSON_ARGS_BUFFER[0] = id;
             // println!("id is: {:#?}", id);
 
-            let len_in_bytes: [u8; 4] = std::mem::transmute(args.bytes().len() as u32);
+            let len_in_bytes: [u8; 4] = (args.bytes().len() as u32).to_ne_bytes();
             // println!("len_in_bytes: {:#?}", len_in_bytes);
 
             JSON_ARGS_BUFFER[1] = len_in_bytes[0];
