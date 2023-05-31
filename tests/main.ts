@@ -1,11 +1,7 @@
-const libName = `../src/target/debug/src.dll`;
-
 import {
-  greet,
   init,
   register_function,
   print_function_list,
-  theme_song_generate,
 } from '../src/bindings/bindings.ts';
 
 type callback = [string, (...args: any[]) => any];
@@ -37,8 +33,6 @@ const callbacks: callback[] = [
 ];
 
 const dylib = Deno.dlopen('../src/target/debug/js_for_anything.dll', {
-  return_buffer: { parameters: [], result: 'pointer' },
-  return_string_buffer: { parameters: [], result: 'pointer' },
   poll_task: { parameters: [], result: 'pointer' },
 });
 
