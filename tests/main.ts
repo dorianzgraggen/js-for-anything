@@ -16,7 +16,7 @@ const callbacks: callback[] = [
   [
     'demo',
     () => {
-      log('i am a demo');
+      log('i am a demo ✨');
     },
   ],
   [
@@ -101,7 +101,10 @@ while (true) {
     const callback = callbacks[id - 1];
     log('calling', callback[0], 'with args', args);
     // TODO: 0 doesnt work as a return value
-    const result = callback[1](...args) || '';
+    let result = callback[1](...args);
+    if (typeof result == 'undefined') {
+      result = '';
+    }
 
     log('result is', result);
 
