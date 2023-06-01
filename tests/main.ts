@@ -2,6 +2,7 @@ import {
   init,
   register_function,
   print_function_list,
+  send_result,
 } from '../src/bindings/bindings.ts';
 
 type callback = [string, (...args: any[]) => any];
@@ -15,13 +16,13 @@ const callbacks: callback[] = [
   [
     'demo',
     () => {
-      console.log('i am a demo');
+      log('i am a demo');
     },
   ],
   [
     'sayHi',
     (name: string) => {
-      console.log(`Hi, ${name} 👋`);
+      log(`Hi, ${name} 👋`);
     },
   ],
   [
@@ -33,7 +34,7 @@ const callbacks: callback[] = [
 ];
 
 const dylib = Deno.dlopen('../src/target/debug/js_for_anything.dll', {
-  poll_task: { parameters: [], result: 'pointer' },
+  poll_pending_invocations: { parameters: [], result: 'pointer' },
 });
 
 print_function_list();
@@ -46,8 +47,8 @@ print_function_list();
 
 init();
 
-function poll_task_2() {
-  const ptr = dylib.symbols.poll_task();
+function pollPendingInvocations() {
+  const ptr = dylib.symbols.poll_pending_invocations();
 
   // @ts-ignore idk
   const ptrView = new Deno.UnsafePointerView(ptr);
@@ -86,21 +87,31 @@ function poll_task_2() {
   return { id, args };
 }
 
-console.log('polled');
+log('polled');
 
 while (true) {
-  let { id, args } = poll_task_2();
+  let { id, args } = pollPendingInvocations();
   while (id != 0) {
     const callback = callbacks[id - 1];
-    console.log('calling', callback[0], 'with args', args);
-    callback[1](...args);
+    log('calling', callback[0], 'with args', args);
+    const result = callback[1](...args) || '';
 
-    const t = poll_task_2();
+    log('result is', result);
 
+    // TODO: use separate function when callback had no return value
+    send_result(JSON.stringify(result));
+
+    // TODO: wait
+
+    const t = pollPendingInvocations();
     id = t.id;
     args = t.args;
-    console.log('id is now', id, 'args is', args);
+    log('id is now', id, 'args is', args);
   }
 
   await new Promise((resolve) => setTimeout(resolve, 100));
+}
+
+function log(...args: any[]) {
+  console.log('%c[TS]', 'color: blue', ...args);
 }

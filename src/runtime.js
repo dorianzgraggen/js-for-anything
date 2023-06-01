@@ -7,11 +7,8 @@ function argsToMessage(...args) {
 
 const console = {
   log: (...args) => {
-    core.print(`[out]: ${argsToMessage(...args)}\n`, false);
-  },
-  error: (...args) => {
-    core.print(`[err]: ${argsToMessage(...args)}\n`, true);
-  },
+    ops.op_print(argsToMessage(...args));
+  }
 };
 
 globalThis.console2 = console;

@@ -1,7 +1,10 @@
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::{collections::HashMap, sync::Mutex};
+
+use colored::Colorize;
 
 use deno_bindgen::deno_bindgen;
 use deno_core::{anyhow::Error, error::AnyError, include_js_files, op, Extension};
@@ -11,10 +14,9 @@ static FUNCTION_MAP: Lazy<Mutex<HashMap<u32, String>>> = Lazy::new(|| {
     Mutex::new(m)
 });
 
-static TASKS: Lazy<Mutex<VecDeque<(u8, String)>>> = Lazy::new(|| {
-    let v = VecDeque::new();
-    Mutex::new(v)
-});
+static CURRENT_FUNCTION: Lazy<Mutex<(u8, String)>> = Lazy::new(|| Mutex::new((0, String::new())));
+static CURRENT_RESULT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+static WAITING: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
 #[op]
 fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
@@ -27,34 +29,72 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
 }
 
 #[op]
-fn op_task(id: u8, args: String) -> Result<(), AnyError> {
-    println!("args: {args}");
-    let mut v = TASKS.lock().unwrap();
-    v.push_back((id, args));
+fn op_task(id: u8, args: String) -> Result<String, AnyError> {
+    println!("[RS]: args: {args}");
+    // let mut v = TASKS.lock().unwrap();
+    // v.push_back((id, args));
+
+    {
+        let mut current_function = CURRENT_FUNCTION.lock().unwrap();
+        current_function.0 = id;
+        current_function.1 = args;
+        *WAITING.lock().unwrap() = true;
+    }
+
+    println!("[RS]: started WAITING");
+    while *WAITING.lock().unwrap() {}
+    println!("[RS]: stopped waiting in op_task");
+    let result = { CURRENT_RESULT.lock().unwrap().clone() };
+
+    println!("[RS]: received {} in op_task", result);
+
+    {
+        let mut current_function = CURRENT_FUNCTION.lock().unwrap();
+        current_function.0 = 0;
+        current_function.1 = String::new();
+    }
+
+    Ok(result)
+}
+
+#[op]
+fn op_print(msg: String) -> Result<(), AnyError> {
+    let formatted = format!("{} {}", "[JS]".yellow(), msg);
+    println!("{}", formatted);
     Ok(())
+}
+
+#[deno_bindgen]
+fn send_result(result: &str) {
+    let mut current_result = CURRENT_RESULT.lock().unwrap();
+    *current_result = result.to_string();
+    println!("[RS]: will set waiting to false");
+    *WAITING.lock().unwrap() = false;
+    println!("[RS]: has set waiting to false!");
 }
 
 static mut JSON_ARGS_BUFFER: [u8; 1024] = [0; 1024];
 
 #[no_mangle]
-fn poll_task() -> *const u8 {
-    let mut queue = TASKS.lock().unwrap();
-    // println!("hahahahaha");
+fn poll_pending_invocations() -> *const u8 {
+    let (id, args) = { CURRENT_FUNCTION.lock().unwrap().clone() };
+
+    println!("[RS]: pending: id({}), args({})", id, args);
 
     unsafe {
-        if let Some((id, args)) = queue.pop_front() {
+        if id != 0 {
             JSON_ARGS_BUFFER[0] = id;
-            // println!("id is: {:#?}", id);
+            // println!("[RS]: id is: {:#?}", id);
 
             let len_in_bytes: [u8; 4] = (args.bytes().len() as u32).to_ne_bytes();
-            // println!("len_in_bytes: {:#?}", len_in_bytes);
+            // println!("[RS]: len_in_bytes: {:#?}", len_in_bytes);
 
             JSON_ARGS_BUFFER[1] = len_in_bytes[0];
             JSON_ARGS_BUFFER[2] = len_in_bytes[1];
             JSON_ARGS_BUFFER[3] = len_in_bytes[2];
             JSON_ARGS_BUFFER[4] = len_in_bytes[3];
 
-            // println!("bytes: {:#?}", args.bytes());
+            // println!("[RS]: bytes: {:#?}", args.bytes());
             for (i, byte) in args.bytes().enumerate() {
                 JSON_ARGS_BUFFER[i + 5] = byte;
             }
@@ -68,13 +108,13 @@ fn poll_task() -> *const u8 {
 
 #[deno_bindgen]
 fn print_function_list() {
-    println!("{:?}", FUNCTION_MAP.lock().unwrap());
+    println!("[RS]: {:?}", FUNCTION_MAP.lock().unwrap());
 }
 
 #[deno_bindgen]
 pub extern "C" fn register_function(name: &str, id: u32) {
     let mut c = FUNCTION_MAP.lock().unwrap();
-    println!("Registering: {}", id);
+    println!("[RS]: Registering: {}", id);
     c.insert(id, String::from(name));
 }
 
@@ -88,7 +128,7 @@ pub extern "C" fn init() {
             .unwrap();
 
         if let Err(error) = runtime.block_on(start_runtime()) {
-            eprintln!("error: {error}");
+            eprintln!("[RS]: error: {error}");
         }
     });
 }
@@ -105,7 +145,11 @@ async fn start_runtime() -> Result<(), AnyError> {
 
     let runjs_extension = Extension::builder("runjs")
         .esm(include_js_files!("runtime.js",))
-        .ops(vec![op_write_file::decl(), op_task::decl()])
+        .ops(vec![
+            op_write_file::decl(),
+            op_task::decl(),
+            op_print::decl(),
+        ])
         .build();
 
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
