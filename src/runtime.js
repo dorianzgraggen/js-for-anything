@@ -20,6 +20,7 @@ globalThis.writeFile = (path, contents) => {
 
 
 globalThis.task = (id, ...args) => {
-  return ops.op_task(id, JSON.stringify(args));
+  const res_string = ops.op_task(id, JSON.stringify(args));
+  return JSON.parse(res_string);
 }
 

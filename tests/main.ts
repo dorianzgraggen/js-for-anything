@@ -31,6 +31,12 @@ const callbacks: callback[] = [
       return a * b;
     },
   ],
+  [
+    'returnObject',
+    () => {
+      return { a: 22, b: 'meow' };
+    },
+  ],
 ];
 
 const dylib = Deno.dlopen('../src/target/debug/js_for_anything.dll', {
@@ -94,6 +100,7 @@ while (true) {
   while (id != 0) {
     const callback = callbacks[id - 1];
     log('calling', callback[0], 'with args', args);
+    // TODO: 0 doesnt work as a return value
     const result = callback[1](...args) || '';
 
     log('result is', result);
