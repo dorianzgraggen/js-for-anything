@@ -45,14 +45,7 @@ fn op_task(id: u8, args: String) -> Result<String, AnyError> {
     while *WAITING.lock().unwrap() {}
     println!("[RS]: stopped waiting in op_task");
     let result = { CURRENT_RESULT.lock().unwrap().clone() };
-
     println!("[RS]: received {} in op_task", result);
-
-    {
-        let mut current_function = CURRENT_FUNCTION.lock().unwrap();
-        current_function.0 = 0;
-        current_function.1 = String::new();
-    }
 
     Ok(result)
 }
@@ -69,7 +62,14 @@ fn send_result(result: &str) {
     let mut current_result = CURRENT_RESULT.lock().unwrap();
     *current_result = result.to_string();
     println!("[RS]: will set waiting to false");
+    {
+        let mut current_function = CURRENT_FUNCTION.lock().unwrap();
+        current_function.0 = 0;
+        current_function.1 = String::new();
+    }
+
     *WAITING.lock().unwrap() = false;
+
     println!("[RS]: has set waiting to false!");
 }
 
