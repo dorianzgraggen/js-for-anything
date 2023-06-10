@@ -3,6 +3,7 @@ import {
   register_function,
   print_function_list,
   send_result,
+  send_event,
 } from '../src/bindings/bindings.ts';
 
 type callback = [string, (...args: any[]) => any];
@@ -38,6 +39,9 @@ const callbacks: callback[] = [
     },
   ],
 ];
+
+type event = { type: string; data: Record<string, unknown> };
+const events: event[] = [];
 
 const dylib = Deno.dlopen('../src/target/debug/js_for_anything.dll', {
   poll_pending_invocations: { parameters: [], result: 'pointer' },
@@ -96,6 +100,16 @@ function pollPendingInvocations() {
 log('polled');
 
 while (true) {
+  updateEvents();
+
+  sendEvents();
+
+  handleFunctionCalls();
+
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
+
+function handleFunctionCalls() {
   let { id, args } = pollPendingInvocations();
   while (id != 0) {
     const callback = callbacks[id - 1];
@@ -112,14 +126,33 @@ while (true) {
     send_result(JSON.stringify(result));
 
     // TODO: wait
-
     const t = pollPendingInvocations();
     id = t.id;
     args = t.args;
     log('id is now', id, 'args is', args);
   }
+}
 
-  await new Promise((resolve) => setTimeout(resolve, 100));
+function sendEvents() {
+  events.forEach((event) => {
+    send_event(event.type, JSON.stringify(event.data));
+    log('sent!');
+  });
+
+  events.length = 0;
+}
+
+function updateEvents() {
+  const specialFrame = Math.random() < 0.05;
+  if (specialFrame) {
+    log('random');
+    events.push({
+      type: 'random',
+      data: {
+        value: Math.random(),
+      },
+    });
+  }
 }
 
 function log(...args: any[]) {

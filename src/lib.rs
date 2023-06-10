@@ -18,6 +18,11 @@ static CURRENT_FUNCTION: Lazy<Mutex<(u8, String)>> = Lazy::new(|| Mutex::new((0,
 static CURRENT_RESULT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 static WAITING: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
+// doing this bookkeeping because at some point i want to have event listeners on objects
+static CALLBACKS: Lazy<Mutex<HashMap<String, u8>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+static PENDING_EVENTS: Lazy<Mutex<Vec<(u8, String)>>> = Lazy::new(|| Mutex::new(Vec::new()));
+
 #[op]
 fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
     let res = std::fs::write(path, contents);
@@ -55,6 +60,44 @@ fn op_print(msg: String) -> Result<(), AnyError> {
     let formatted = format!("{} {}", "[JS]".yellow(), msg);
     println!("{}", formatted);
     Ok(())
+}
+
+#[op]
+async fn op_set_timeout(delay: u64) -> Result<(), AnyError> {
+    tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    Ok(())
+}
+
+#[op]
+fn op_register_callback(callback_type: String, index: u8) -> Result<(), AnyError> {
+    let mut callbacks = CALLBACKS.lock().unwrap();
+    callbacks.insert(callback_type, index);
+    println!("[RS]: callbacks {:#?}", callbacks);
+    Ok(())
+}
+
+#[op]
+fn op_get_events() -> Result<Vec<(u8, String)>, AnyError> {
+    let pending_events = {
+        let mut events = PENDING_EVENTS.lock().unwrap();
+        let clone = events.clone();
+        events.clear();
+        clone
+    };
+
+    Ok(pending_events)
+}
+
+#[deno_bindgen]
+fn send_event(event_type: &str, data: &str) {
+    let id = {
+        let callbacks = CALLBACKS.lock().unwrap();
+        *callbacks.get(event_type).unwrap()
+    };
+    let mut events = PENDING_EVENTS.lock().unwrap();
+    events.push((id, String::from(data)));
+
+    println!("[RS]: has set waiting to false!");
 }
 
 #[deno_bindgen]
@@ -149,6 +192,9 @@ async fn start_runtime() -> Result<(), AnyError> {
             op_write_file::decl(),
             op_task::decl(),
             op_print::decl(),
+            op_register_callback::decl(),
+            op_get_events::decl(),
+            op_set_timeout::decl(),
         ])
         .build();
 
