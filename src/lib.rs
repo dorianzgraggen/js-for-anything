@@ -1,5 +1,7 @@
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{collections::HashMap, sync::Mutex};
@@ -35,7 +37,7 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
 
 #[op]
 fn op_task(id: u8, args: String) -> Result<String, AnyError> {
-    println!("[RS]: args: {args}");
+    rs_log("[RS]: args: {args}".into());
     // let mut v = TASKS.lock().unwrap();
     // v.push_back((id, args));
 
@@ -46,11 +48,11 @@ fn op_task(id: u8, args: String) -> Result<String, AnyError> {
         *WAITING.lock().unwrap() = true;
     }
 
-    println!("[RS]: started WAITING");
+    rs_log("[RS]: started WAITING".into());
     while *WAITING.lock().unwrap() {}
-    println!("[RS]: stopped waiting in op_task");
+    rs_log("[RS]: stopped waiting in op_task".into());
     let result = { CURRENT_RESULT.lock().unwrap().clone() };
-    println!("[RS]: received {} in op_task", result);
+    rs_log(format!("[RS]: received {} in op_task", result));
 
     Ok(result)
 }
@@ -58,7 +60,7 @@ fn op_task(id: u8, args: String) -> Result<String, AnyError> {
 #[op]
 fn op_print(msg: String) -> Result<(), AnyError> {
     let formatted = format!("{} {}", "[JS]".yellow(), msg);
-    println!("{}", formatted);
+    rs_log(format!("{}", formatted));
     Ok(())
 }
 
@@ -72,7 +74,7 @@ async fn op_set_timeout(delay: u64) -> Result<(), AnyError> {
 fn op_register_callback(callback_type: String, index: u8) -> Result<(), AnyError> {
     let mut callbacks = CALLBACKS.lock().unwrap();
     callbacks.insert(callback_type, index);
-    println!("[RS]: callbacks {:#?}", callbacks);
+    rs_log(format!("[RS]: callbacks {:#?}", callbacks));
     Ok(())
 }
 
@@ -97,14 +99,14 @@ fn send_event(event_type: &str, data: &str) {
     let mut events = PENDING_EVENTS.lock().unwrap();
     events.push((id, String::from(data)));
 
-    println!("[RS]: has set waiting to false!");
+    rs_log("[RS]: has set waiting to false!".into());
 }
 
 #[deno_bindgen]
 fn send_result(result: &str) {
     let mut current_result = CURRENT_RESULT.lock().unwrap();
     *current_result = result.to_string();
-    println!("[RS]: will set waiting to false");
+    rs_log("[RS]: will set waiting to false".into());
     {
         let mut current_function = CURRENT_FUNCTION.lock().unwrap();
         current_function.0 = 0;
@@ -113,7 +115,7 @@ fn send_result(result: &str) {
 
     *WAITING.lock().unwrap() = false;
 
-    println!("[RS]: has set waiting to false!");
+    rs_log("[RS]: has set waiting to false!".into());
 }
 
 static mut JSON_ARGS_BUFFER: [u8; 1024] = [0; 1024];
@@ -122,22 +124,22 @@ static mut JSON_ARGS_BUFFER: [u8; 1024] = [0; 1024];
 fn poll_pending_invocations() -> *const u8 {
     let (id, args) = { CURRENT_FUNCTION.lock().unwrap().clone() };
 
-    println!("[RS]: pending: id({}), args({})", id, args);
+    rs_log(format!("[RS]: pending: id({}), args({})", id, args));
 
     unsafe {
         if id != 0 {
             JSON_ARGS_BUFFER[0] = id;
-            // println!("[RS]: id is: {:#?}", id);
+            // rs_log("[RS]: id is: {:#?}", id);
 
             let len_in_bytes: [u8; 4] = (args.bytes().len() as u32).to_ne_bytes();
-            // println!("[RS]: len_in_bytes: {:#?}", len_in_bytes);
+            // rs_log("[RS]: len_in_bytes: {:#?}", len_in_bytes);
 
             JSON_ARGS_BUFFER[1] = len_in_bytes[0];
             JSON_ARGS_BUFFER[2] = len_in_bytes[1];
             JSON_ARGS_BUFFER[3] = len_in_bytes[2];
             JSON_ARGS_BUFFER[4] = len_in_bytes[3];
 
-            // println!("[RS]: bytes: {:#?}", args.bytes());
+            // rs_log("[RS]: bytes: {:#?}", args.bytes());
             for (i, byte) in args.bytes().enumerate() {
                 JSON_ARGS_BUFFER[i + 5] = byte;
             }
@@ -151,13 +153,23 @@ fn poll_pending_invocations() -> *const u8 {
 
 #[deno_bindgen]
 fn print_function_list() {
-    println!("[RS]: {:?}", FUNCTION_MAP.lock().unwrap());
+    let fn_map = FUNCTION_MAP.lock().unwrap();
+    rs_log(format!("[RS]: {:?}", fn_map));
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(true)
+        .open("C:\\projects\\game-engine\\unity-js\\Assets\\Plugins\\rs-log.txt")
+        .unwrap();
+
+    writeln!(file, "A new line! {:?}", fn_map).unwrap();
 }
 
 #[deno_bindgen]
 pub extern "C" fn register_function(name: &str, id: u32) {
     let mut c = FUNCTION_MAP.lock().unwrap();
-    println!("[RS]: Registering: {}", id);
+    rs_log(format!("[RS]: Registering: {}", id));
     c.insert(id, String::from(name));
 }
 
@@ -171,7 +183,7 @@ pub extern "C" fn init() {
             .unwrap();
 
         if let Err(error) = runtime.block_on(start_runtime()) {
-            eprintln!("[RS]: error: {error}");
+            rs_log(format!("[RS]: error: {error}"));
         }
     });
 }
@@ -223,4 +235,52 @@ fn build_prelude() -> String {
     }
 
     raw_prelude.replace("/** will be populated before it runs */", &to_insert)
+}
+
+// don't know how to pass around function pointers and stuff so using this as a workaround
+static mut RS_LOG: Lazy<Mutex<[u8; 4096]>> = Lazy::new(|| Mutex::new([0; 4096]));
+static mut RS_LOG_CLONE: [u8; 4096] = [0; 4096];
+
+fn rs_log(mut txt: String) {
+    // let formatted = format!("[RS] {} \n", txt);
+    txt.push_str("\n");
+    let len = txt.bytes().len() as u32;
+
+    // println!("logging {}", txt);
+
+    let mut buf = unsafe { RS_LOG.lock().unwrap() };
+    let current_len = u32::from_ne_bytes([buf[0], buf[1], buf[2], buf[3]]);
+
+    let combined_len = len + current_len;
+    // println!(
+    //     "current_len {}, len {}, combined_len {}",
+    //     current_len, len, combined_len
+    // );
+
+    let len_in_bytes: [u8; 4] = combined_len.to_ne_bytes();
+
+    buf[0] = len_in_bytes[0];
+    buf[1] = len_in_bytes[1];
+    buf[2] = len_in_bytes[2];
+    buf[3] = len_in_bytes[3];
+
+    for (i, byte) in txt.bytes().enumerate() {
+        buf[i + 4 + (current_len as usize)] = byte;
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_rs_log() -> *const u8 {
+    RS_LOG_CLONE = unsafe { *RS_LOG.lock().unwrap() };
+    let mut buf = unsafe { RS_LOG.lock().unwrap() };
+
+    let zero: usize = 0;
+    let len_in_bytes = zero.to_ne_bytes();
+
+    buf[0] = len_in_bytes[0];
+    buf[1] = len_in_bytes[1];
+    buf[2] = len_in_bytes[2];
+    buf[3] = len_in_bytes[3];
+
+    RS_LOG_CLONE.as_ptr()
 }

@@ -45,6 +45,7 @@ const events: event[] = [];
 
 const dylib = Deno.dlopen('../src/target/debug/js_for_anything.dll', {
   poll_pending_invocations: { parameters: [], result: 'pointer' },
+  get_rs_log: { parameters: [], result: 'pointer' },
 });
 
 print_function_list();
@@ -97,6 +98,31 @@ function pollPendingInvocations() {
   return { id, args };
 }
 
+function getLogs() {
+  const ptr = dylib.symbols.get_rs_log();
+
+  // @ts-ignore idk
+  const ptrView = new Deno.UnsafePointerView(ptr);
+
+  const log_length = get_log_length();
+  const txt = get_txt();
+
+  function get_log_length() {
+    const into = new Uint8Array(4);
+    ptrView.copyInto(into);
+    return new Uint32Array(into.buffer)[0];
+  }
+
+  function get_txt() {
+    const into = new Uint8Array(log_length + 4 - (log_length % 4));
+    ptrView.copyInto(into, 4);
+    const s = new TextDecoder().decode(into.slice(0, log_length));
+    return s;
+  }
+
+  return txt;
+}
+
 log('polled');
 
 while (true) {
@@ -105,6 +131,8 @@ while (true) {
   sendEvents();
 
   handleFunctionCalls();
+
+  console.log(getLogs());
 
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
