@@ -6,6 +6,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{collections::HashMap, sync::Mutex};
 
+use libc::c_char;
+use std::ffi::CStr;
+
 use colored::Colorize;
 
 use deno_bindgen::deno_bindgen;
@@ -155,22 +158,28 @@ fn poll_pending_invocations() -> *const u8 {
 fn print_function_list() {
     let fn_map = FUNCTION_MAP.lock().unwrap();
     rs_log(format!("[RS]: {:?}", fn_map));
-
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true)
-        .open("C:\\projects\\game-engine\\unity-js\\Assets\\Plugins\\rs-log.txt")
-        .unwrap();
-
-    writeln!(file, "A new line! {:?}", fn_map).unwrap();
 }
 
 #[deno_bindgen]
 pub extern "C" fn register_function(name: &str, id: u32) {
+    register_function_private(name, id);
+}
+
+fn register_function_private(name: &str, id: u32) {
     let mut c = FUNCTION_MAP.lock().unwrap();
     rs_log(format!("[RS]: Registering: {}", id));
     c.insert(id, String::from(name));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn register_function_c_str(s: *const c_char, id: u32) {
+    let c_str = unsafe {
+        assert!(!s.is_null());
+        CStr::from_ptr(s)
+    };
+
+    let r_str = c_str.to_str().unwrap();
+    register_function_private(r_str, id);
 }
 
 #[deno_bindgen]
