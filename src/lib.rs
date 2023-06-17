@@ -109,6 +109,22 @@ fn send_event(event_type: &str, data: &str) {
 
 #[deno_bindgen]
 fn send_result(result: &str) {
+    send_result_real(result);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn send_result_c_str(s: *const c_char) {
+    let c_str = unsafe {
+        assert!(!s.is_null());
+        CStr::from_ptr(s)
+    };
+
+    let r_str = c_str.to_str().unwrap();
+
+    send_result_real(r_str);
+}
+
+fn send_result_real(result: &str) {
     let mut current_result = CURRENT_RESULT.lock().unwrap();
     *current_result = result.to_string();
     rs_log("[RS]: will set waiting to false".into());
