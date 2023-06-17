@@ -3,7 +3,9 @@ use std::collections::VecDeque;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use std::{collections::HashMap, sync::Mutex};
 
 use libc::c_char;
@@ -167,7 +169,7 @@ pub extern "C" fn register_function(name: &str, id: u32) {
 
 fn register_function_private(name: &str, id: u32) {
     let mut c = FUNCTION_MAP.lock().unwrap();
-    rs_log(format!("[RS]: Registering: {}", id));
+    rs_log(format!("xxxxxxxxxxxxxxxx [RS]: Registering: {}", id));
     c.insert(id, String::from(name));
 }
 
@@ -184,6 +186,22 @@ pub unsafe extern "C" fn register_function_c_str(s: *const c_char, id: u32) {
 
 #[deno_bindgen]
 pub extern "C" fn init() {
+    real_init("app.js".to_string());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn init_from_path(path: *const c_char) {
+    let c_str = unsafe {
+        assert!(!path.is_null());
+        CStr::from_ptr(path)
+    };
+
+    let r_str = c_str.to_str().unwrap();
+
+    real_init(r_str.to_string());
+}
+
+fn real_init(path: String) {
     std::thread::spawn(|| {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .thread_name("js_plugin thread")
@@ -191,21 +209,30 @@ pub extern "C" fn init() {
             .build()
             .unwrap();
 
-        if let Err(error) = runtime.block_on(start_runtime()) {
+        if let Err(error) = runtime.block_on(start_runtime(path)) {
             rs_log(format!("[RS]: error: {error}"));
         }
     });
 }
 
-async fn start_runtime() -> Result<(), AnyError> {
-    std::fs::copy("app.js", "copy.js")?;
-    let contents = std::fs::read_to_string("copy.js")?;
+async fn start_runtime(path: String) -> Result<(), AnyError> {
+    let copy = path.clone().replace(".js", ".copy.js");
+    std::fs::copy(path, &copy)?;
+    let contents = std::fs::read_to_string(&copy)?;
+
+    rs_log("copied".into());
 
     let prelude = build_prelude();
-    let both = format!("{}{}", prelude, contents);
-    std::fs::write("copy.js", both)?;
 
-    let main_module = deno_core::resolve_path("copy.js")?;
+    let both = format!("{}{}", prelude, contents);
+
+    rs_log(both.clone());
+
+    // std::thread::sleep(Duration::from_millis(15000));
+
+    std::fs::write(&copy, both)?;
+
+    let main_module = deno_core::resolve_path(&copy)?;
 
     let runjs_extension = Extension::builder("runjs")
         .esm(include_js_files!("runtime.js",))
@@ -250,9 +277,23 @@ fn build_prelude() -> String {
 static mut RS_LOG: Lazy<Mutex<[u8; 4096]>> = Lazy::new(|| Mutex::new([0; 4096]));
 static mut RS_LOG_CLONE: [u8; 4096] = [0; 4096];
 
+static LOG_TO_FILE: AtomicBool = AtomicBool::new(true);
+
 fn rs_log(mut txt: String) {
-    // let formatted = format!("[RS] {} \n", txt);
+    if LOG_TO_FILE.load(Ordering::Relaxed) {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .append(true)
+            .open("C:\\projects\\game-engine\\unity-js\\Assets\\rs-log.txt")
+            .unwrap();
+
+        writeln!(file, "[RS]\n{}", txt).unwrap();
+        return;
+    }
+
     txt.push_str("\n");
+    // let formatted = format!("[RS] {} \n", txt);
     let len = txt.bytes().len() as u32;
 
     // println!("logging {}", txt);
