@@ -145,7 +145,9 @@ static mut JSON_ARGS_BUFFER: [u8; 1024] = [0; 1024];
 fn poll_pending_invocations() -> *const u8 {
     let (id, args) = { CURRENT_FUNCTION.lock().unwrap().clone() };
 
-    rs_log(format!("[RS]: pending: id({}), args({})", id, args));
+    if id != 0 {
+        rs_log(format!("[RS]: pending: id({}), args({})", id, args));
+    }
 
     unsafe {
         if id != 0 {
