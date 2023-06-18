@@ -17,7 +17,7 @@ use colored::Colorize;
 use deno_bindgen::deno_bindgen;
 use deno_core::{anyhow::Error, error::AnyError, include_js_files, op, Extension};
 
-static FUNCTION_MAP: Lazy<Mutex<HashMap<u32, String>>> = Lazy::new(|| {
+static FUNCTION_MAP: Lazy<Mutex<HashMap<u32, (String, bool)>>> = Lazy::new(|| {
     let m = HashMap::new();
     Mutex::new(m)
 });
@@ -187,18 +187,18 @@ fn print_function_list() {
 
 #[deno_bindgen]
 pub extern "C" fn register_function(name: &str, id: u32) {
-    real_register_function(name.to_string(), id);
+    real_register_function(name.to_string(), id, false);
 }
 
-fn real_register_function(name: String, id: u32) {
+fn real_register_function(name: String, id: u32, is_constructor: bool) {
     let mut c = FUNCTION_MAP.lock().unwrap();
     rs_log(format!("xxxxxxxxxxxxxxxx [RS]: Registering: {}", id));
-    c.insert(id, name);
+    c.insert(id, (name, is_constructor));
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn register_function_c_str(s: *const c_char, id: u32) {
-    real_register_function(c_str_to_rust_string(s), id);
+pub unsafe extern "C" fn register_function_c_str(s: *const c_char, id: u32, is_constructor: bool) {
+    real_register_function(c_str_to_rust_string(s), id, is_constructor);
 }
 
 #[deno_bindgen]
@@ -276,8 +276,8 @@ fn build_prelude() -> String {
 
     // builds list with elements like this: ['functionName', 0]
     let mut to_insert = String::from("");
-    for (id, name) in functions.into_iter() {
-        to_insert = format!("{}['{}',{}],", to_insert, name, id);
+    for (id, (name, is_constructor)) in functions.into_iter() {
+        to_insert = format!("{}['{}', {}, {}],", to_insert, name, id, is_constructor);
     }
 
     raw_prelude.replace("/** will be populated before it runs */", &to_insert)
