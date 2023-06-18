@@ -66,7 +66,7 @@ fn op_task(id: u8, args: String) -> Result<String, AnyError> {
 #[op]
 fn op_print(msg: String) -> Result<(), AnyError> {
     let formatted = format!("{} {}", "[JS]".yellow(), msg);
-    rs_log(format!("{}", formatted));
+    rs_log(formatted);
     Ok(())
 }
 
@@ -98,36 +98,40 @@ fn op_get_events() -> Result<Vec<(u8, String)>, AnyError> {
 
 #[deno_bindgen]
 fn send_event(event_type: &str, data: &str) {
+    real_send_event(event_type.to_string(), data.to_string());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn send_event_c_str(event_type: *const c_char, data: *const c_char) {
+    real_send_event(c_str_to_rust_string(event_type), c_str_to_rust_string(data))
+}
+
+fn real_send_event(event_type: String, data: String) {
+    rs_log(format!("got event_type {} and data {}", event_type, data));
+
     let id = {
         let callbacks = CALLBACKS.lock().unwrap();
-        *callbacks.get(event_type).unwrap()
+        *callbacks.get(&event_type).unwrap()
     };
     let mut events = PENDING_EVENTS.lock().unwrap();
-    events.push((id, String::from(data)));
+    events.push((id, data));
 
     rs_log("[RS]: has set waiting to false!".into());
 }
 
 #[deno_bindgen]
 fn send_result(result: &str) {
-    send_result_real(result);
+    send_result_real(result.to_string());
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn send_result_c_str(s: *const c_char) {
-    let c_str = unsafe {
-        assert!(!s.is_null());
-        CStr::from_ptr(s)
-    };
-
-    let r_str = c_str.to_str().unwrap();
-
-    send_result_real(r_str);
+    send_result_real(c_str_to_rust_string(s));
 }
 
-fn send_result_real(result: &str) {
+fn send_result_real(result: String) {
     let mut current_result = CURRENT_RESULT.lock().unwrap();
-    *current_result = result.to_string();
+    *current_result = result;
     rs_log("[RS]: will set waiting to false".into());
     {
         let mut current_function = CURRENT_FUNCTION.lock().unwrap();
@@ -183,24 +187,18 @@ fn print_function_list() {
 
 #[deno_bindgen]
 pub extern "C" fn register_function(name: &str, id: u32) {
-    register_function_private(name, id);
+    real_register_function(name.to_string(), id);
 }
 
-fn register_function_private(name: &str, id: u32) {
+fn real_register_function(name: String, id: u32) {
     let mut c = FUNCTION_MAP.lock().unwrap();
     rs_log(format!("xxxxxxxxxxxxxxxx [RS]: Registering: {}", id));
-    c.insert(id, String::from(name));
+    c.insert(id, name);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn register_function_c_str(s: *const c_char, id: u32) {
-    let c_str = unsafe {
-        assert!(!s.is_null());
-        CStr::from_ptr(s)
-    };
-
-    let r_str = c_str.to_str().unwrap();
-    register_function_private(r_str, id);
+    real_register_function(c_str_to_rust_string(s), id);
 }
 
 #[deno_bindgen]
@@ -210,14 +208,7 @@ pub extern "C" fn init() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init_from_path(path: *const c_char) {
-    let c_str = unsafe {
-        assert!(!path.is_null());
-        CStr::from_ptr(path)
-    };
-
-    let r_str = c_str.to_str().unwrap();
-
-    real_init(r_str.to_string());
+    real_init(c_str_to_rust_string(path));
 }
 
 fn real_init(path: String) {
@@ -372,4 +363,13 @@ pub unsafe extern "C" fn get_rs_log() -> *const u8 {
     buf[3] = len_in_bytes[3];
 
     RS_LOG_CLONE.as_ptr()
+}
+
+fn c_str_to_rust_string(s: *const c_char) -> String {
+    let c_str = unsafe {
+        assert!(!s.is_null());
+        CStr::from_ptr(s)
+    };
+
+    c_str.to_str().unwrap().to_string()
 }
