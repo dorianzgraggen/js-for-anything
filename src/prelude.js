@@ -11,8 +11,15 @@ functions.forEach(([str, id, is_constructor]) => {
       const object_id = parsed.id;
       const methods = parsed.methods;
 
-      Object.entries(methods).forEach(method => {
-        this[method.name] = (...args) => task(method.id, ...args);
+      this.lol = "22";
+      this["ahaha"] = true;
+
+      this.rest = Object.entries(methods);
+      this.count = 100;
+
+      Object.entries(methods).forEach(([method_name, method_id]) => {
+        this.count++;
+        this[method_name] = (...args) => task(method_id, ...args);
       });
     }
 
