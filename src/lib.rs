@@ -1,3 +1,4 @@
+use deno_core::v8::Boolean;
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
 use std::fs::OpenOptions;
@@ -295,12 +296,32 @@ fn build_prelude() -> String {
 static mut RS_LOG: Lazy<Mutex<[u8; 4096]>> = Lazy::new(|| Mutex::new([0; 4096]));
 static mut RS_LOG_CLONE: [u8; 4096] = [0; 4096];
 
-static LOG_TO_FILE: AtomicBool = AtomicBool::new(true);
+#[no_mangle]
+pub extern "C" fn clear_log_file() {
+    match OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open("C:\\projects\\game-engine\\unity-js\\Assets\\rs-log.txt")
+    {
+        Ok(file) => {
+            file.set_len(0).unwrap();
+        }
+        Err(err) => {
+            rs_log(format!("Error getting log file {:?}", err));
+        }
+    }
+}
+
+static LOG_TO_FILE: AtomicBool = AtomicBool::new(false);
+
+#[no_mangle]
+pub extern "C" fn set_log_to_file(log_to_file: bool) {
+    LOG_TO_FILE.store(log_to_file, Ordering::Relaxed);
+}
 
 fn rs_log(mut txt: String) {
     if LOG_TO_FILE.load(Ordering::Relaxed) {
         let mut file = OpenOptions::new()
-            .write(true)
             .create(true)
             .append(true)
             .open("C:\\projects\\game-engine\\unity-js\\Assets\\rs-log.txt")
