@@ -47,3 +47,6 @@ globalThis.task = (id, ...args) => {
   return JSON.parse(res_string);
 }
 
+globalThis.shouldExit = () => {
+  return ops.op_should_exit();
+}

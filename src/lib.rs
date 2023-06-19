@@ -136,6 +136,12 @@ fn op_get_events() -> Result<Vec<(u8, String)>, AnyError> {
     Ok(pending_events)
 }
 
+#[op]
+fn op_should_exit() -> Result<bool, AnyError> {
+    let should_exit = SHOULD_EXIT.load(Ordering::Relaxed);
+    Ok(should_exit)
+}
+
 #[deno_bindgen]
 fn send_event(event_type: &str, data: &str) {
     real_send_event(event_type.to_string(), data.to_string());
@@ -290,7 +296,7 @@ fn real_init(path: String) {
             .unwrap();
 
         if let Err(error) = runtime.block_on(start_runtime(path)) {
-            rs_log(format!("[RS]: error: {error}"));
+            rs_log(format!("[RS]: blocked, error: {error}"));
         }
     });
 }
@@ -323,6 +329,7 @@ async fn start_runtime(path: String) -> Result<(), AnyError> {
             op_register_callback::decl(),
             op_get_events::decl(),
             op_set_timeout::decl(),
+            op_should_exit::decl(),
         ])
         .build();
 
@@ -374,10 +381,16 @@ pub extern "C" fn clear_log_file() {
 }
 
 static LOG_TO_FILE: AtomicBool = AtomicBool::new(false);
+static SHOULD_EXIT: AtomicBool = AtomicBool::new(false);
 
 #[no_mangle]
 pub extern "C" fn set_log_to_file(log_to_file: bool) {
     LOG_TO_FILE.store(log_to_file, Ordering::Relaxed);
+}
+
+#[no_mangle]
+pub extern "C" fn stop() {
+    SHOULD_EXIT.store(true, Ordering::Relaxed);
 }
 
 fn rs_log(mut txt: String) {
