@@ -1,3 +1,4 @@
+use deno_core::error::custom_error;
 use deno_core::v8::Boolean;
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
@@ -7,7 +8,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, sync::Mutex, time::SystemTime};
 
 use libc::c_char;
 use std::ffi::CStr;
@@ -46,19 +47,58 @@ fn op_task(id: u8, args: String) -> Result<String, AnyError> {
     rs_log("[RS]: args: {args}".into());
     // let mut v = TASKS.lock().unwrap();
     // v.push_back((id, args));
+    let now = SystemTime::now();
 
+    if let Some(callback) = unsafe { task_callback } {
+        // Create a sample string to pass to the callback
+        let c_string = std::ffi::CString::new(args).unwrap();
+
+        let result = unsafe {
+            let c_string_ptr = callback(id, c_string.as_ptr());
+            CStr::from_ptr(c_string_ptr).to_string_lossy().into_owned()
+        };
+
+        rs_log(format!("___ returned string: {}", result));
+        rs_log(format!(
+            "+++++++++++++ task callback took: {}",
+            now.elapsed().unwrap().as_millis()
+        ));
+        return Ok(result);
+    }
+
+    return Err(custom_error("OP_Error", "i just couldn't"));
+
+    // unsafe {
+    //     if let Some(callback) = global_callback {
+    //         let result = callback(99, 700);
+    //         rs_log(format!("--------- new result {}", result));
+    //     }
+    // }
+
+    let now = SystemTime::now();
     {
         let mut current_function = CURRENT_FUNCTION.lock().unwrap();
         current_function.0 = id;
         current_function.1 = args;
         *WAITING.lock().unwrap() = true;
     }
+    rs_log(format!(
+        "current_function {} ms",
+        now.elapsed().unwrap().as_millis()
+    ));
 
     rs_log("[RS]: started WAITING".into());
     while *WAITING.lock().unwrap() {}
     rs_log("[RS]: stopped waiting in op_task".into());
+
+    rs_log(format!("waiting {} ms", now.elapsed().unwrap().as_millis()));
+
     let result = { CURRENT_RESULT.lock().unwrap().clone() };
     rs_log(format!("[RS]: received {} in op_task", result));
+    rs_log(format!(
+        "task took {} ms",
+        now.elapsed().unwrap().as_millis()
+    ));
 
     Ok(result)
 }
@@ -99,6 +139,36 @@ fn op_get_events() -> Result<Vec<(u8, String)>, AnyError> {
 #[deno_bindgen]
 fn send_event(event_type: &str, data: &str) {
     real_send_event(event_type.to_string(), data.to_string());
+}
+
+#[no_mangle]
+pub extern "C" fn set_task_callback(callback: extern "C" fn(u8, *const c_char) -> *const c_char) {
+    unsafe { task_callback = Some(callback) };
+    // // Create a sample string to pass to the callback
+    // let my_string = "Hello from Rust!";
+    // let c_string = std::ffi::CString::new(my_string).unwrap();
+
+    // rs_log(format!("struggling"));
+
+    // let returned_string = unsafe {
+    //     let c_string_ptr = callback(22, c_string.as_ptr());
+    //     CStr::from_ptr(c_string_ptr).to_string_lossy().into_owned()
+    // };
+
+    // rs_log(format!("___ returned string: {}", returned_string));
+}
+
+static mut global_callback: Option<extern "C" fn(i32, i32) -> i32> = None;
+static mut task_callback: Option<extern "C" fn(u8, *const c_char) -> *const c_char> = None;
+
+#[no_mangle]
+pub extern "C" fn my_rust_function(callback: extern "C" fn(i32, i32) -> i32) {
+    // Call the provided callback function
+    let result = callback(10, 20);
+    unsafe { global_callback = Some(callback) };
+    // Do something with the result
+    // ...
+    rs_log(format!("************ result: {}", result));
 }
 
 #[no_mangle]
@@ -311,6 +381,7 @@ pub extern "C" fn set_log_to_file(log_to_file: bool) {
 }
 
 fn rs_log(mut txt: String) {
+    // return;
     if LOG_TO_FILE.load(Ordering::Relaxed) {
         let mut file = OpenOptions::new()
             .create(true)
