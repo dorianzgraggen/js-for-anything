@@ -186,11 +186,23 @@ fn real_send_event(event_type: String, data: String) {
     rs_log(format!("got event_type {} and data {}", event_type, data));
 
     let id = {
-        let callbacks = CALLBACKS.lock().unwrap();
-        *callbacks.get(&event_type).unwrap()
+        if let Ok(callbacks) = CALLBACKS.lock() {
+            if let Some(cb) = callbacks.get(&event_type) {
+                *cb
+            } else {
+                rs_log("couldn't find callback".into());
+                return;
+            }
+        } else {
+            rs_log("couldn't lock callbacks".into());
+            return;
+        }
     };
-    let mut events = PENDING_EVENTS.lock().unwrap();
-    events.push((id, data));
+    if let Ok(mut events) = PENDING_EVENTS.lock() {
+        events.push((id, data));
+    } else {
+        rs_log("couldn't lock events".into());
+    }
 
     rs_log("[RS]: has set waiting to false!".into());
 }
@@ -288,6 +300,8 @@ pub unsafe extern "C" fn init_from_path(path: *const c_char) {
 }
 
 fn real_init(path: String) {
+    SHOULD_EXIT.store(false, Ordering::Relaxed);
+
     std::thread::spawn(|| {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .thread_name("js_plugin thread")
