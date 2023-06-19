@@ -1,4 +1,5 @@
 use deno_core::error::custom_error;
+use deno_core::futures::future::poll_fn;
 use deno_core::v8::Boolean;
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
@@ -282,17 +283,15 @@ pub unsafe extern "C" fn init_from_path(path: *const c_char) {
 }
 
 fn real_init(path: String) {
-    std::thread::spawn(|| {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .thread_name("js_plugin thread")
-            .enable_all()
-            .build()
-            .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .thread_name("js_plugin thread")
+        .enable_all()
+        .build()
+        .unwrap();
 
-        if let Err(error) = runtime.block_on(start_runtime(path)) {
-            rs_log(format!("[RS]: error: {error}"));
-        }
-    });
+    if let Err(error) = runtime.block_on(start_runtime(path)) {
+        rs_log(format!("[RS]: error: {error}"));
+    }
 }
 
 async fn start_runtime(path: String) -> Result<(), AnyError> {
@@ -336,9 +335,26 @@ async fn start_runtime(path: String) -> Result<(), AnyError> {
 
     let result = js_runtime.mod_evaluate(mod_id);
 
-    js_runtime.run_event_loop(false).await?;
-    result.await?
+    unsafe { runtime = Some(js_runtime) };
+
+    loop {
+        poll_fn(move |cx| {
+            if let Some(mut rt) = unsafe { runtime } {
+                &rt.poll_event_loop(cx, false);
+            };
+            std::task::Poll::Ready(())
+        })
+        .await;
+    }
+
+    Ok(())
+
+    // js_runtime.run_event_loop(false).await?;
+    // js_runtime.
+    // result.await?
 }
+
+static mut runtime: Option<&'static deno_core::JsRuntime> = None;
 
 fn build_prelude() -> String {
     let raw_prelude = include_str!("prelude.js");
