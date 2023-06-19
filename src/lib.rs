@@ -44,7 +44,7 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
 
 #[op]
 fn op_task(id: u8, args: String) -> Result<String, AnyError> {
-    rs_log("[RS]: args: {args}".into());
+    // rs_log("[RS]: args: {args}".into());
     // let mut v = TASKS.lock().unwrap();
     // v.push_back((id, args));
     let now = SystemTime::now();
@@ -58,11 +58,11 @@ fn op_task(id: u8, args: String) -> Result<String, AnyError> {
             CStr::from_ptr(c_string_ptr).to_string_lossy().into_owned()
         };
 
-        rs_log(format!("___ returned string: {}", result));
-        rs_log(format!(
-            "+++++++++++++ task callback took: {}",
-            now.elapsed().unwrap().as_millis()
-        ));
+        // rs_log(format!("___ returned string: {}", result));
+        // rs_log(format!(
+        //     "+++++++++++++ task callback took: {} microsec",
+        //     now.elapsed().unwrap().as_micros()
+        // ));
         return Ok(result);
     }
 
