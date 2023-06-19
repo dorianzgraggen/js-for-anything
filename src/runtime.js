@@ -34,7 +34,9 @@ globalThis.handle_events = () => {
   events.forEach(([index, stringified_data]) => {
     console2.log("getting event index: " + index + " with data: " + stringified_data)
     const callback = callbacks[index];
-    callback(JSON.parse(stringified_data));
+    if (typeof callback == "function") {
+      callback(JSON.parse(stringified_data));
+    }
   });
 }
 
