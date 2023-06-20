@@ -371,7 +371,9 @@ fn build_prelude() -> String {
         to_insert = format!("{}['{}', {}, {}],", to_insert, name, id, is_constructor);
     }
 
-    raw_prelude.replace("/** will be populated before it runs */", &to_insert)
+    to_insert = format!("[{}]", to_insert);
+
+    raw_prelude.replace("[]; // will be populated before it runs", &to_insert)
 }
 
 // don't know how to pass around function pointers and stuff so using this as a workaround

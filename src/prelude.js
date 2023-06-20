@@ -1,4 +1,4 @@
-let functions = [/** will be populated before it runs */];
+let functions = []; // will be populated before it runs
 
 functions.forEach(([str, id, is_constructor]) => {
   if (is_constructor) {
