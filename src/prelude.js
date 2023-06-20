@@ -12,9 +12,19 @@ functions.forEach(([str, id, is_constructor]) => {
       const methods = parsed.methods;
 
       Object.entries(methods).forEach(([method_name, method_id]) => {
-        this.count++;
         this[method_name] = (...args) => task(method_id, ...args);
       });
+
+      const getters = parsed.getters;
+      Object.entries(getters).forEach(([getter_name, getter_id]) => {
+        Object.defineProperty(this, getter_name, {
+          get: () => {
+            console2.log("trying")
+            return task(getter_id)
+          }
+        })
+      })
+
     }
 
   } else {
