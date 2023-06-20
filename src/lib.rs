@@ -44,10 +44,7 @@ fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
 
 #[op]
 fn op_task(id: u8, args: String) -> Result<String, AnyError> {
-    // rs_log("[RS]: args: {args}".into());
-    // let mut v = TASKS.lock().unwrap();
-    // v.push_back((id, args));
-    let now = SystemTime::now();
+    // let now = SystemTime::now();
 
     if let Some(callback) = unsafe { task_callback } {
         // Create a sample string to pass to the callback
@@ -66,41 +63,7 @@ fn op_task(id: u8, args: String) -> Result<String, AnyError> {
         return Ok(result);
     }
 
-    return Err(custom_error("OP_Error", "i just couldn't"));
-
-    // unsafe {
-    //     if let Some(callback) = global_callback {
-    //         let result = callback(99, 700);
-    //         rs_log(format!("--------- new result {}", result));
-    //     }
-    // }
-
-    let now = SystemTime::now();
-    {
-        let mut current_function = CURRENT_FUNCTION.lock().unwrap();
-        current_function.0 = id;
-        current_function.1 = args;
-        *WAITING.lock().unwrap() = true;
-    }
-    rs_log(format!(
-        "current_function {} ms",
-        now.elapsed().unwrap().as_millis()
-    ));
-
-    rs_log("[RS]: started WAITING".into());
-    while *WAITING.lock().unwrap() {}
-    rs_log("[RS]: stopped waiting in op_task".into());
-
-    rs_log(format!("waiting {} ms", now.elapsed().unwrap().as_millis()));
-
-    let result = { CURRENT_RESULT.lock().unwrap().clone() };
-    rs_log(format!("[RS]: received {} in op_task", result));
-    rs_log(format!(
-        "task took {} ms",
-        now.elapsed().unwrap().as_millis()
-    ));
-
-    Ok(result)
+    Err(custom_error("OP_Error", "i just couldn't"))
 }
 
 #[op]
@@ -150,32 +113,10 @@ fn send_event(event_type: &str, data: &str) {
 #[no_mangle]
 pub extern "C" fn set_task_callback(callback: extern "C" fn(u8, *const c_char) -> *const c_char) {
     unsafe { task_callback = Some(callback) };
-    // // Create a sample string to pass to the callback
-    // let my_string = "Hello from Rust!";
-    // let c_string = std::ffi::CString::new(my_string).unwrap();
-
-    // rs_log(format!("struggling"));
-
-    // let returned_string = unsafe {
-    //     let c_string_ptr = callback(22, c_string.as_ptr());
-    //     CStr::from_ptr(c_string_ptr).to_string_lossy().into_owned()
-    // };
-
-    // rs_log(format!("___ returned string: {}", returned_string));
 }
 
 static mut global_callback: Option<extern "C" fn(i32, i32) -> i32> = None;
 static mut task_callback: Option<extern "C" fn(u8, *const c_char) -> *const c_char> = None;
-
-#[no_mangle]
-pub extern "C" fn my_rust_function(callback: extern "C" fn(i32, i32) -> i32) {
-    // Call the provided callback function
-    let result = callback(10, 20);
-    unsafe { global_callback = Some(callback) };
-    // Do something with the result
-    // ...
-    rs_log(format!("************ result: {}", result));
-}
 
 #[no_mangle]
 pub unsafe extern "C" fn send_event_c_str(event_type: *const c_char, data: *const c_char) {
