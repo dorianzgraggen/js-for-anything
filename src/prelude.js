@@ -6,16 +6,10 @@ functions.forEach(([str, id, is_constructor]) => {
 
       const parsed = task(id, ...args);
 
-      console2.log("parsed:" + parsed)
+      console2.log({ parsed })
 
       const object_id = parsed.id;
       const methods = parsed.methods;
-
-      this.lol = "22";
-      this["ahaha"] = true;
-
-      this.rest = Object.entries(methods);
-      this.count = 100;
 
       Object.entries(methods).forEach(([method_name, method_id]) => {
         this.count++;
