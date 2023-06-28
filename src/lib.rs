@@ -241,8 +241,6 @@ pub unsafe extern "C" fn init_from_path(path: *const c_char) {
 }
 
 fn real_init(path: String) {
-    SHOULD_EXIT.store(false, Ordering::Relaxed);
-
     std::thread::spawn(|| {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .thread_name("js_plugin thread")
@@ -348,6 +346,18 @@ pub extern "C" fn set_log_to_file(log_to_file: bool) {
 #[no_mangle]
 pub extern "C" fn stop() {
     SHOULD_EXIT.store(true, Ordering::Relaxed);
+
+    let mut callbacks = CALLBACKS.lock().unwrap();
+    callbacks.clear();
+
+    let mut pending_events = PENDING_EVENTS.lock().unwrap();
+    pending_events.clear();
+}
+
+#[no_mangle]
+pub extern "C" fn setup() {
+    SHOULD_EXIT.store(false, Ordering::Relaxed);
+    FUNCTION_MAP.lock().unwrap().clear();
 }
 
 fn rs_log(mut txt: String) {
