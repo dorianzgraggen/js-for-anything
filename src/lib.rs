@@ -343,6 +343,18 @@ pub extern "C" fn set_log_to_file(log_to_file: bool) {
     LOG_TO_FILE.store(log_to_file, Ordering::Relaxed);
 }
 
+static LOG_PATH: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+
+#[no_mangle]
+pub unsafe extern "C" fn set_log_filepath(path: *const c_char) {
+    let s = c_str_to_rust_string(path);
+    let mut path = LOG_PATH.lock().unwrap();
+    path.clear();
+    for ch in s.chars() {
+        path.push(ch);
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn stop() {
     SHOULD_EXIT.store(true, Ordering::Relaxed);
@@ -361,12 +373,13 @@ pub extern "C" fn setup() {
 }
 
 fn rs_log(mut txt: String) {
-    // return;
     if LOG_TO_FILE.load(Ordering::Relaxed) {
+        let path = { LOG_PATH.lock().unwrap().clone() };
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open("C:\\projects\\game-engine\\unity-js\\Assets\\rs-log.txt")
+            .open(path)
+            // .open("C:\\projects\\game-engine\\unity-js\\Assets\\rs-log.txt")
             .unwrap();
 
         writeln!(file, "[RS]\n{}", txt).unwrap();
